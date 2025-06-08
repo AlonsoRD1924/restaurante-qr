@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Digital - Restaurante QR</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="page-header">
+            <h1>🍽️ Menú Digital</h1>
+            <p id="mesaInfo">Mesa: <span id="numeroMesaActual">-</span></p>
+        </header>
+
+        <!-- Filtros de categorías -->
+        <div class="card">
+            <h3>Categorías</h3>
+            <div class="categorias-filtros" id="categoriasFiltros">
+                <button class="btn-categoria active" onclick="filtrarCategoria('todas')">Todas</button>
+            </div>
+        </div>
+
+        <!-- Carrito resumen -->
+        <div class="carrito-resumen" id="carritoResumen" style="display: none;">
+            <div class="card">
+                <h3>🛒 Tu Pedido</h3>
+                <div id="carritoItems"></div>
+                <div class="carrito-total">
+                    <strong>Total: <span id="carritoTotal">0.00 €</span></strong>
+                </div>
+                <div class="carrito-acciones">
+                    <button class="btn" onclick="finalizarPedido()">Finalizar Pedido</button>
+                    <button class="btn btn-secondary" onclick="limpiarCarrito()">Limpiar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de productos -->
+        <div class="productos-container" id="productosContainer">
+            <!-- Los productos se cargarán dinámicamente aquí -->
+        </div>
+
+        <!-- Modal de confirmación -->
+        <div id="modalConfirmacion" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>✅ Pedido Confirmado</h3>
+                <p>Tu pedido ha sido enviado a la cocina.</p>
+                <p><strong>Mesa:</strong> <span id="modalMesa"></span></p>
+                <p><strong>Total:</strong> <span id="modalTotal"></span></p>
+                <div class="modal-acciones">
+                    <button class="btn" onclick="cerrarModal()">Cerrar</button>
+                    <button class="btn btn-secondary" onclick="nuevoPedido()">Nuevo Pedido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Variables globales para el menú
+        let mesaActual = 0;
+        let carrito = [];
+        let productos = [];
+        let categoriaActual = 'todas';
+
+        // Inicializar página del menú
+        document.addEventListener('DOMContentLoaded', function() {
+            inicializarMenu();
+        });
+
+        function inicializarMenu() {
+            // Obtener número de mesa de la URL
+            mesaActual = obtenerParametroURL('mesa');
+            
+            if (!mesaActual) {
+                alert('No se especificó número de mesa. Redirigiendo...');
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Mostrar número de mesa
+            document.getElementById('numeroMesaActual').textContent = mesaActual;
+
+            // Cargar productos
+            productos = Storage.obtenerProductos();
+            
+            // Cargar categorías
+            cargarCategorias();
+            
+            // Mostrar productos
+            mostrarProductos();
+
+            // Cargar carrito existente si hay uno
+            const carritoGuardado = Storage.obtenerPedido();
+            if (carritoGuardado && carritoGuardado.mesa == mesaActual) {
+                carrito = carritoGuardado.items || [];
+                actualizarVistaCarrito();
+            }
+        }
+
+        function cargarCategorias() {
+            const categorias = [...new Set(productos.map(p => p.categoria))];
+            const contenedor = document.getElementById('categoriasFiltros');
+            
+            // Limpiar categorías existentes (excepto "Todas")
+            contenedor.innerHTML = '<button class="btn-categoria active" onclick="filtrarCategoria(\'todas\')">Todas</button>';
+            
+            // Añadir categorías dinámicamente
+            categorias.forEach(categoria => {
+                const boton = document.createElement('button');
+                boton.className = 'btn-categoria';
+                boton.textContent = categoria;
+                boton.onclick = () => filtrarCategoria(categoria);
+                contenedor.appendChild(boton);
+            });
+        }
+
+        function filtrarCategoria(categoria) {
+            categoriaActual = categoria;
+            
+            // Actualizar botones activos
+            document.querySelectorAll('.btn-categoria').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Mostrar productos filtrados
+            mostrarProductos();
+        }
+
+        function mostrarProductos() {
+            const contenedor = document.getElementById('productosContainer');
+            contenedor.innerHTML = '';
+
+            const productosFiltrados = categoriaActual === 'todas' 
+                ? productos 
+                : productos.filter(p => p.categoria === categoriaActual);
+
+            productosFiltrados.forEach(producto => {
+                if (producto.disponible) {
+                    const productoHTML = crearProductoHTML(producto);
+                    contenedor.appendChild(productoHTML);
+                }
+            });
+        }
+
+        function crearProductoHTML(producto) {
+            const div = document.createElement('div');
+            div.className = 'producto-card';
+            
+            div.innerHTML = `
+                <div class="producto-imagen-emoji">
+                    <div class="emoji-grande">${producto.imagen}</div>
+                </div>
+                <div class="producto-info">
+                    <h4>${producto.nombre}</h4>
+                    <p class="producto-descripcion">${producto.descripcion}</p>
+                    <div class="producto-precio">
+                        <span class="precio">${Utils.formatearPrecio(producto.precio)}</span>
+                    </div>
+                    <div class="producto-acciones">
+                        <button class="btn-cantidad" onclick="cambiarCantidad(${producto.id}, -1)">-</button>
+                        <span class="cantidad" id="cantidad-${producto.id}">0</span>
+                        <button class="btn-cantidad" onclick="cambiarCantidad(${producto.id}, 1)">+</button>
+                        <button class="btn btn-add" onclick="agregarAlCarrito(${producto.id})">Añadir</button>
+                    </div>
+                </div>
+            `;
+            
+            return div;
+        }
+
+        function cambiarCantidad(productoId, cambio) {
+            const cantidadElement = document.getElementById(`cantidad-${productoId}`);
+            let cantidadActual = parseInt(cantidadElement.textContent);
+            
+            cantidadActual += cambio;
+            if (cantidadActual < 0) cantidadActual = 0;
+            if (cantidadActual > 10) cantidadActual = 10; // Límite máximo
+            
+            cantidadElement.textContent = cantidadActual;
+        }
+
+        function agregarAlCarrito(productoId) {
+            const cantidad = parseInt(document.getElementById(`cantidad-${productoId}`).textContent);
+            
+            if (cantidad === 0) {
+                alert('Selecciona una cantidad mayor a 0');
+                return;
+            }
+
+            const producto = productos.find(p => p.id === productoId);
+            
+            // Buscar si ya existe en el carrito
+            const itemExistente = carrito.find(item => item.id === productoId);
+            
+            if (itemExistente) {
+                itemExistente.cantidad += cantidad;
+            } else {
+                carrito.push({
+                    id: producto.id,
+                    nombre: producto.nombre,
+                    precio: producto.precio,
+                    cantidad: cantidad,
+                    codigo_tpv: producto.codigo_tpv
+                });
+            }
+
+            // Resetear cantidad en la interfaz
+            document.getElementById(`cantidad-${productoId}`).textContent = '0';
+            
+            // Actualizar vista del carrito
+            actualizarVistaCarrito();
+            
+            // Guardar carrito
+            Storage.guardarPedido({
+                mesa: mesaActual,
+                items: carrito,
+                fecha: Utils.obtenerFechaActual()
+            });
+        }
+
+        function actualizarVistaCarrito() {
+            const carritoElement = document.getElementById('carritoResumen');
+            const itemsElement = document.getElementById('carritoItems');
+            const totalElement = document.getElementById('carritoTotal');
+
+            if (carrito.length === 0) {
+                carritoElement.style.display = 'none';
+                return;
+            }
+
+            carritoElement.style.display = 'block';
+            
+            // Mostrar items
+            itemsElement.innerHTML = '';
+            let total = 0;
+
+            carrito.forEach(item => {
+                const itemTotal = item.precio * item.cantidad;
+                total += itemTotal;
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'carrito-item';
+                itemDiv.innerHTML = `
+                    <span>${item.nombre}</span>
+                    <span>x${item.cantidad}</span>
+                    <span>${Utils.formatearPrecio(itemTotal)}</span>
+                    <button class="btn-remove" onclick="eliminarDelCarrito(${item.id})">🗑️</button>
+                `;
+                itemsElement.appendChild(itemDiv);
+            });
+
+            totalElement.textContent = Utils.formatearPrecio(total);
+        }
+
+        function eliminarDelCarrito(productoId) {
+            carrito = carrito.filter(item => item.id !== productoId);
+            actualizarVistaCarrito();
+            
+            // Actualizar storage
+            if (carrito.length === 0) {
+                Storage.limpiarPedido();
+            } else {
+                Storage.guardarPedido({
+                    mesa: mesaActual,
+                    items: carrito,
+                    fecha: Utils.obtenerFechaActual()
+                });
+            }
+        }
+
+        function limpiarCarrito() {
+            if (confirm('¿Estás seguro de que quieres limpiar el carrito?')) {
+                carrito = [];
+                actualizarVistaCarrito();
+                Storage.limpiarPedido();
+            }
+        }
+
+        function finalizarPedido() {
+            if (carrito.length === 0) {
+                alert('El carrito está vacío');
+                return;
+            }
+
+            const total = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+            
+            // Mostrar modal de confirmación
+            document.getElementById('modalMesa').textContent = mesaActual;
+            document.getElementById('modalTotal').textContent = Utils.formatearPrecio(total);
+            document.getElementById('modalConfirmacion').style.display = 'flex';
+
+            // Aquí enviarías el pedido al backend/TPV
+            enviarPedidoATpv();
+        }
+
+        function enviarPedidoATpv() {
+            // Por ahora, solo simular el envío
+            console.log('Enviando pedido al TPV:', {
+                mesa: mesaActual,
+                items: carrito,
+                total: carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0),
+                fecha: Utils.obtenerFechaActual()
+            });
+
+            // Limpiar carrito después de enviar
+            carrito = [];
+            Storage.limpiarPedido();
+        }
+
+        function cerrarModal() {
+            document.getElementById('modalConfirmacion').style.display = 'none';
+        }
+
+        function nuevoPedido() {
+            cerrarModal();
+            actualizarVistaCarrito();
+        }
+    </script>
+</body>
+</html>

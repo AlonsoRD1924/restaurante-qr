@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurante QR - Bienvenido</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🍽️ Bienvenido al Restaurante</h1>
+            <p class="subtitle">Haz tu pedido escaneando el código QR de tu mesa</p>
+        </header>
+
+        <main class="main-content">
+            <div class="welcome-card">
+                <h2>¿Cómo funciona?</h2>
+                <div class="steps">
+                    <div class="step">
+                        <span class="step-number">1</span>
+                        <p>Escanea el código QR de tu mesa</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">2</span>
+                        <p>Navega por nuestro menú digital</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">3</span>
+                        <p>Añade productos a tu pedido</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">4</span>
+                        <p>Confirma y espera a que te sirvan</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-access">
+                <h3>Acceso directo al menú</h3>
+                <p>Si ya tienes el número de mesa:</p>
+                <div class="mesa-input">
+                    <input type="number" id="numeroMesa" placeholder="Número de mesa" min="1" max="50">
+                    <button onclick="irAlMenu()">Ver Menú</button>
+                </div>
+            </div>
+
+            <div class="admin-access">
+                <a href="admin.html" class="admin-link">Acceso Administrador</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
